@@ -10,10 +10,10 @@ FRI = datetime.datetime(hour=9, day=7, month=1, year=2022)
 SAT = datetime.datetime(hour=9, day=8, month=1, year=2022)
 SUN = datetime.datetime(hour=9, day=9, month=1, year=2022)
 
-FRI_BEFORE = datetime.datetime(hour=9, day=30, month=12, year=2022)
-SAT_BEFORE = datetime.datetime(hour=9, day=31, month=12, year=2022)
-SUN_NEXT = datetime.datetime(hour=9, day=1, month=1, year=2023)
-MON_NEXT = datetime.datetime(hour=9, day=2, month=1, year=2023)
+FRI_2022 = datetime.datetime(hour=9, day=30, month=12, year=2022)
+SAT_2022 = datetime.datetime(hour=9, day=31, month=12, year=2022)
+SUN_2023 = datetime.datetime(hour=9, day=1, month=1, year=2023)
+MON_2023 = datetime.datetime(hour=9, day=2, month=1, year=2023)
 
 
 def test_1():
@@ -29,8 +29,8 @@ def test_3():
 
 
 def test_4():
-    assert calculate_sleep_time(FRI_BEFORE, 0, 2) == datetime.datetime(minute=30, hour=8, day=2, month=1, year=2023)
+    assert calculate_sleep_time(FRI_2022, 0, 2) == datetime.datetime(minute=30, hour=8, day=2, month=1, year=2023)
 
 
 def test_5():
-    assert calculate_sleep_time(SAT_BEFORE, 6, 1) == datetime.datetime(minute=30, hour=8, day=1, month=1, year=2023)
+    assert calculate_sleep_time(SAT_2022, 6, 1) == datetime.datetime(minute=30, hour=8, day=1, month=1, year=2023)
