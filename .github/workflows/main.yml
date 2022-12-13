@@ -1,11 +1,15 @@
 name: Continuous Integration
+
 on: [push]
+
 jobs:
   build:
+
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: [3.6, 3.7, 3.8]
+
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python all python version
@@ -13,7 +17,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           architecture: x64
-     - name: Install dependencies
-       run: pip install -r requirements.txt
-     - name: Run Test
-       run: python -m tests.py
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Run Test
+        run: python -m tests.py
