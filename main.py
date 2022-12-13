@@ -26,7 +26,6 @@ Zulip bot for sending Mensa Academica Aachen's menu to the PLT Zulip chat every 
 import configparser
 import datetime
 import logging
-from typing import Iterable
 
 import time
 import os.path
@@ -37,7 +36,7 @@ import zulip
 __author__ = "Moritz Sommer"
 __version__ = "1.0"
 
-INFO_TIME = datetime.time(11, 25, 00, tzinfo=pytz.timezone('Europe/Berlin'))
+INFO_TIME = datetime.time(8, 30, 00, tzinfo=pytz.timezone('Europe/Berlin'))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -45,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 def main_loop():
     logger.info("Initializing client ...")
-    config_file = os.path.join(os.path.dirname(__file__), "sample-config.ini")
+    config_file = os.path.join(os.path.dirname(__file__), "config.ini")
     config = configparser.ConfigParser()
     config.read(config_file)
     zulip_client = zulip.Client(config_file=config_file)
@@ -54,11 +53,12 @@ def main_loop():
     while True:
         try:
             # Calculate time until message and sleep
-            sleep_time = calculate_sleep_time()
+            sleep_time = calculate_sleep_time(datetime.datetime.now(tz=INFO_TIME.tzinfo), 0, 2)
             logger.info("Scheduling next message for {}.".format(sleep_time))
             logarithmic_sleep(sleep_time)
 
             # Send messages
+            # ToDO Plan
             send_plan(zulip_client, stream_name)
 
             # Prevent fast retriggering
@@ -70,23 +70,33 @@ def main_loop():
             logger.error("Exception in main loop:", exc_info=e)
 
 
-# Calculate waiting time
-def calculate_sleep_time() -> datetime.datetime:
-    now = datetime.datetime.now(tz=INFO_TIME.tzinfo)
-    res = now.replace(hour=INFO_TIME.hour, minute=INFO_TIME.minute, second=INFO_TIME.second,
-                      microsecond=INFO_TIME.microsecond)
-    if res <= now:
-        res += datetime.timedelta(days=1)
+def calculate_sleep_time(day_init: datetime.datetime, day_a: int, day_b: int) -> datetime.datetime:
+    """
+    Calculate the waiting time from an initial date to the next of two given days of the week.
 
-    # Skip the weekend
-    if res.weekday() >= 5:
-        res += datetime.timedelta(days=7 - res.weekday())
+    :param day_init: initial date
+    :param day_a: weekday one, can be a number 0-6
+    :param day_b: weekday two, can be a number 0-6
+    """
+
+    res = day_init.replace(hour=INFO_TIME.hour, minute=INFO_TIME.minute, second=INFO_TIME.second,
+                           microsecond=INFO_TIME.microsecond)
+
+    if res <= day_init:
+        res += datetime.timedelta(days=1)
+        delta_a = datetime.timedelta(days=(day_a - res.weekday()) % 7)
+        delta_b = datetime.timedelta(days=(day_b - res.weekday()) % 7)
+        res += delta_a if delta_a < delta_b else delta_b
 
     return res
 
 
-# Halve the waiting time up to a defined threshold
 def logarithmic_sleep(target: datetime.datetime):
+    """
+    Halve the waiting time until the given threshold.
+
+    :param target: waiting time
+    """
     while True:
         diff = (target - datetime.datetime.now(tz=datetime.timezone.utc)).total_seconds()
         if diff < 0.2:
