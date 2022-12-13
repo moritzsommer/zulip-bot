@@ -21,7 +21,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
-Zulip bot for sending Mensa Academica Aachen's menu to the PLT Zulip chat every workday at 11:25.
+Zulip bot for sending a message containing kitchen duties to the IAT Zulip chat every Monday and Wednesday at 08:30.
 """
 import configparser
 import datetime
@@ -78,7 +78,6 @@ def calculate_sleep_time(day_init: datetime.datetime, day_a: int, day_b: int) ->
     :param day_a: weekday one, can be a number 0-6
     :param day_b: weekday two, can be a number 0-6
     """
-
     res = day_init.replace(hour=INFO_TIME.hour, minute=INFO_TIME.minute, second=INFO_TIME.second,
                            microsecond=INFO_TIME.microsecond)
 
@@ -107,9 +106,9 @@ def logarithmic_sleep(target: datetime.datetime):
 
 
 def send_plan(client: zulip.Client, stream: str):
-    logger.info("Fetching menu data ...")
+    logger.info("Fetching plan data ...")
 
-    logger.info("Fetching menu data finished.")
+    logger.info("Fetching plan data finished.")
 
     logger.info("Sending messages ...")
 
