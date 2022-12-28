@@ -20,6 +20,8 @@
 # LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+# This version of the bot was developed by Moritz Sommer <moritz.sommer@rwth-aachen.de>.
 """
 Zulip bot for sending a message containing kitchen duties to the IAT Zulip chat every Monday and Wednesday at 08:30.
 """
@@ -32,6 +34,8 @@ import os.path
 
 import pytz
 import zulip
+
+from tinydb import TinyDB, Query
 
 __author__ = "Moritz Sommer"
 __version__ = "1.0"
@@ -64,7 +68,7 @@ def main_loop():
             # Prevent fast retriggering
             time.sleep(1)
         except KeyboardInterrupt:
-            logger.info("Received KeyobardInterrupt. Exiting …")
+            logger.info("Received KeyboardInterrupt. Exiting …")
             return
         except Exception as e:
             logger.error("Exception in main loop:", exc_info=e)
@@ -81,10 +85,13 @@ def calculate_sleep_time(day_init: datetime.datetime, day_a: int, day_b: int) ->
     res = day_init.replace(hour=INFO_TIME.hour, minute=INFO_TIME.minute, second=INFO_TIME.second,
                            microsecond=INFO_TIME.microsecond)
 
+    # Check whether send today
     if res <= day_init:
         res += datetime.timedelta(days=1)
+        # Time interval to both dates
         delta_a = datetime.timedelta(days=(day_a - res.weekday()) % 7)
         delta_b = datetime.timedelta(days=(day_b - res.weekday()) % 7)
+        # Chose date which is closer
         res += delta_a if delta_a < delta_b else delta_b
 
     return res
@@ -113,6 +120,15 @@ def send_plan(client: zulip.Client, stream: str):
     logger.info("Sending messages ...")
 
     logger.info("Sending messages finished.")
+
+
+def save_plan(client: zulip.Client, stream: str):
+    subscribers: list[int] = client.get_subscribers(stream=stream)["subscribers"]
+    db = TinyDB("database.json")
+    for subscribers_id in subscribers:
+        if not db.contains(Query().id == subscribers_id):
+            user = client.get_user_by_id(subscribers_id)
+            db.insert({"id": user["user_id"], "name": user["full_name"], "days": 0})
 
 
 if __name__ == "__main__":
