@@ -208,7 +208,7 @@ def get_user() -> list:
     return res
 
 
-def get_dates() -> list[list]:
+def get_dates() -> list:
     """
     Return the next eight dates for kitchen duties.
 
