@@ -59,7 +59,7 @@ def main_loop():
     stream_name = config['message']['stream']
     # Variable to distinguish first day and second day
     sleep_time = calculate_sleep_time(datetime.datetime.now(tz=INFO_TIME.tzinfo), FIRST_DAY, SECOND_DAY)
-    first_day_flag = sleep_time.isocalendar().weekday == FIRST_DAY + 1
+    first_day_flag = sleep_time.isocalendar()[2] == FIRST_DAY + 1
     logger.info("Initialising database ...")
     update_database(zulip_client, stream_name)
     logger.info("Starting into main loop ...")
@@ -264,10 +264,10 @@ def get_dates() -> list:
     res = []
     cur_date = datetime.date.today()
     for i in range(8):
-        cur_week = datetime.date.isocalendar(cur_date).week
-        cur_year = datetime.date.isocalendar(cur_date).year
-        monday = datetime.date.fromisocalendar(cur_year, cur_week, 1).strftime('%d.%m.%Y')
-        friday = datetime.date.fromisocalendar(cur_year, cur_week, 5).strftime('%d.%m.%Y')
+        cur_week = datetime.date.isocalendar(cur_date)[1]
+        cur_year = datetime.date.isocalendar(cur_date)[0]
+        monday = datetime.datetime.strptime(f"{cur_year}-W{cur_week}-1", "%Y-W%W-%w").strftime('%d.%m.%Y')
+        friday = datetime.datetime.strptime(f"{cur_year}-W{cur_week}-5", "%Y-W%W-%w").strftime('%d.%m.%Y')
         res.append([cur_week, monday, friday])
         cur_date = cur_date + datetime.timedelta(days=7)
     return res
