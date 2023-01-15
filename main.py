@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright 2020 by Michael Thies <mail@mhthies.de>
+# Copyright (c) 2023 Moritz Sommer <moritz.sommer@rwth-aachen.de>
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the
@@ -21,9 +21,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-# This version of the bot was developed by Moritz Sommer <moritz.sommer@rwth-aachen.de>.
 """
-Zulip bot for sending a message containing kitchen duties to the IAT Zulip chat every Monday and Wednesday at 08:30.
+Zulip bot for sending messages containing kitchen duties to the IAT Zulip chat every Monday and Wednesday at 08:30.
 """
 import configparser
 import datetime
@@ -81,7 +80,6 @@ def main_loop():
             first_day_flag = not first_day_flag
             # Prevent fast retriggering
             time.sleep(1)
-            break
         except KeyboardInterrupt:
             logger.info("Received KeyboardInterrupt. Exiting …")
             return
