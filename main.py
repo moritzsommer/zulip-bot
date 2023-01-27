@@ -22,7 +22,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 """
-Zulip bot for sending messages containing kitchen duties to the IAT Zulip chat every Monday and Wednesday at 08:30.
+Zulip bot for sending messages containing kitchen duties to the IAT Zulip chat twice a week.
 """
 import configparser
 import datetime
@@ -41,7 +41,14 @@ __version__ = "1.0"
 
 INFO_TIME = datetime.time(8, 30, 00, tzinfo=pytz.timezone('Europe/Berlin'))
 FIRST_DAY = 0
-SECOND_DAY = 2
+SECOND_DAY = 3
+NO_KITCHEN_DUTIES = [17, 31]
+DATABASE = "database.json"
+
+TEST = True
+TEST_DATABASE = "test_database.json"
+TEST_STARTING_DATE = datetime.datetime.strptime("01.01.23 08:00:00", '%d.%m.%y %H:%M:%S')
+TEST_WEEKS = 5
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -57,34 +64,72 @@ def main_loop():
     config.read(config_file)
     zulip_client = zulip.Client(config_file=config_file)
     stream_name = config['message']['stream']
-    # Variable to distinguish first day and second day
-    sleep_time = calculate_sleep_time(datetime.datetime.now(tz=INFO_TIME.tzinfo), FIRST_DAY, SECOND_DAY)
-    first_day_flag = sleep_time.isocalendar()[2] == FIRST_DAY + 1
     logger.info("Initialising database ...")
-    update_database(zulip_client, stream_name)
+    update_database(zulip_client, stream_name, DATABASE)
     logger.info("Starting into main loop ...")
     while True:
         try:
             logger.info("Updating database ...")
-            set_first_user()
-            update_database(zulip_client, stream_name)
+            set_first_user(DATABASE)
+            update_database(zulip_client, stream_name, DATABASE)
             # Calculate time until message and sleep
             sleep_time = calculate_sleep_time(datetime.datetime.now(tz=INFO_TIME.tzinfo), FIRST_DAY, SECOND_DAY)
-            logger.info("Scheduling next message for {}.".format(sleep_time))
+            logger.info(f"Scheduling next message for {sleep_time}.")
             logarithmic_sleep(sleep_time)
             # Send messages
-            send_plan(zulip_client, stream_name, first_day_flag)
-            # Set next user on Wednesday
-            if not first_day_flag:
-                set_next_user()
-            first_day_flag = not first_day_flag
+            send_plan(zulip_client, stream_name, sleep_time, DATABASE)
+            # Set next user on Thursday
+            if datetime.date.isocalendar(sleep_time)[2] - 1 == SECOND_DAY:
+                set_next_user(DATABASE)
             # Prevent fast retriggering
             time.sleep(1)
         except KeyboardInterrupt:
-            logger.info("Received KeyboardInterrupt. Exiting …")
+            logger.info("Received KeyboardInterrupt. Exiting ...")
             return
         except Exception as e:
             logger.error("Exception in main loop:", exc_info=e)
+
+
+def test_main_loop():
+    """
+    While true loop for testing all functions.
+    """
+    logger.warning("Running in test mode ...")
+    logger.info("Initializing test client ...")
+    config_file = os.path.join(os.path.dirname(__file__), "test_config.ini")
+    config = configparser.ConfigParser()
+    config.read(config_file)
+    zulip_client = zulip.Client(config_file=config_file)
+    stream_name = config['message']['stream']
+    simulated_time = TEST_STARTING_DATE
+
+    logger.info("Initialising test database ...")
+    update_database(zulip_client, stream_name, TEST_DATABASE)
+    logger.info("Starting into test main loop ...")
+    for i in range(TEST_WEEKS * 2):
+        try:
+            logger.info("Updating test database ...")
+            set_first_user(TEST_DATABASE)
+            update_database(zulip_client, stream_name, TEST_DATABASE)
+            # Calculate time until message and sleep
+            sleep_time = calculate_sleep_time(simulated_time, FIRST_DAY, SECOND_DAY)
+            logger.info(f"Scheduling next message for {sleep_time}.")
+            logger.info("Simulating sleep time ...")
+            simulated_time = sleep_time
+            # Send messages
+            send_plan(zulip_client, stream_name, sleep_time, TEST_DATABASE)
+            # Set next user on Thursday
+            if datetime.date.isocalendar(sleep_time)[2] - 1 == SECOND_DAY:
+                set_next_user(TEST_DATABASE)
+            # Prevent fast retriggering
+            time.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("Received KeyboardInterrupt. Exiting ...")
+            return
+        except Exception as e:
+            logger.error("Exception in main loop:", exc_info=e)
+    os.remove(TEST_DATABASE)
+    logger.warning("Exiting test mode ...")
 
 
 def calculate_sleep_time(day_init: datetime.datetime, day_a: int, day_b: int) -> datetime.datetime:
@@ -97,14 +142,16 @@ def calculate_sleep_time(day_init: datetime.datetime, day_a: int, day_b: int) ->
     """
     res = day_init.replace(hour=INFO_TIME.hour, minute=INFO_TIME.minute, second=INFO_TIME.second,
                            microsecond=INFO_TIME.microsecond)
-    # Check whether send today
-    if res <= day_init:
+    day_iso = datetime.date.isocalendar(day_init)[2] - 1
+    # Clause decides whether to send the message today or search for closest day to send the message
+    if res <= day_init or (day_iso != FIRST_DAY and day_iso != SECOND_DAY):
         res += datetime.timedelta(days=1)
         # Time interval to both dates
         delta_a = datetime.timedelta(days=(day_a - res.weekday()) % 7)
         delta_b = datetime.timedelta(days=(day_b - res.weekday()) % 7)
-        # Chose date which is closer
+        # Choose date which is closer
         res += delta_a if delta_a < delta_b else delta_b
+    # If the clause was skipped, its before the INFO_TIME at FIRST_DAY or SECOND_DAY
     return res
 
 
@@ -123,21 +170,22 @@ def logarithmic_sleep(target: datetime.datetime):
             time.sleep(diff / 2)
 
 
-def send_plan(client: zulip.Client, stream: str, format: bool):
+def send_plan(client: zulip.Client, stream: str, initial: datetime.date, database: str):
     """
     Format and send the message containing kitchen duties.
 
     :param client: Zulip client
     :param stream: Zulip stream
-    :param format: choose one of the two formats for the message
+    :param initial: initial date to choose one of the two formats for the message
+    :param database: database name
     """
     logger.info("Fetching plan data ...")
-    users = get_user()
-    dates = get_dates()
+    users = get_user(database)
+    dates = get_dates(initial)
     logger.info("Fetching plan data finished.")
     formatted_plan = (
             "# Küchenplan {:%d.%m.%Y}\n\n"
-            "| Mitarbeiter | Woche | Montag | Freitag |\n|---|---|---|---|\n".format(datetime.date.today())
+            "| Mitarbeiter | Woche | Montag | Freitag |\n|---|---|---|---|\n".format(initial)
             + "\n".join(
                 "| {} | {} | {} | {} |".format(
                     user["name"],
@@ -147,7 +195,8 @@ def send_plan(client: zulip.Client, stream: str, format: bool):
                 for user, date in zip(users, dates))
     )
 
-    if format:
+    subject = f"Küchenplan {dates[0][1]} - {dates[0][2]}"
+    if datetime.date.isocalendar(initial)[2] - 1 == FIRST_DAY:
         formatted_plan = formatted_plan + "\n\n Küchendienstaufgaben:\n\n* {} \n* {} \n* {} \n* {} \n* {}".format(
             "Getränke im Kühlschrank nachfüllen (mindestens 50% Wasser, Rest Club Mate und Cola)",
             "Leergut ins Archiv bringen und leere Kästen in die Küche stellen",
@@ -155,45 +204,53 @@ def send_plan(client: zulip.Client, stream: str, format: bool):
             "Wenn Spülmaschine voll, starten und ausräumen (spätestens Freitag, auch wenn nicht voll)",
             "Handtücher auswechseln, benutzte Handtücher bei Martina abgeben")
 
-    subject = "Küchenplan {:%d.%m.%Y}".format(datetime.date.today())
-    logger.info("Sending messages ...")
-    client.send_message({
-        "type": "stream",
-        "to": [stream],
-        "subject": subject,
-        "content": formatted_plan,
-    })
-
-    if not format:
-        # Prevent second message from not being sent
-        time.sleep(1)
+        logger.info("Sending message ...")
+        client.send_message({
+            "type": "stream",
+            "to": [stream],
+            "topic": subject,
+            "content": formatted_plan,
+        })
+        logger.info("Sending message finished.")
+    elif datetime.date.isocalendar(initial)[2] - 1 == SECOND_DAY:
         checklist = "/poll Küchendienstaufgaben" \
-                    "\n Getränke im Kühlschrank nachfüllen (mindestens 50% Wasser, Rest Club Mate und Cola)"\
+                    "\n Getränke im Kühlschrank nachfüllen (mindestens 50% Wasser, Rest Club Mate und Cola)" \
                     "\n Leergut ins Archiv bringen und leere Kästen in die Küche stellen" \
                     "\n Wenn Getränke sich dem Ende neigen, Justin zwecks Bestellung Bescheid geben" \
                     "\n Wenn Spülmaschine voll, starten und ausräumen (spätestens Freitag, auch wenn nicht voll)" \
                     "\n Handtücher auswechseln, benutzte Handtücher bei Martina abgeben"
+
+        logger.info("Sending messages ...")
         client.send_message({
             "type": "stream",
             "to": [stream],
-            "subject": subject,
+            "topic": subject,
+            "content": formatted_plan,
+        })
+        # Sleep to prevent second message from not being sent
+        time.sleep(1)
+        client.send_message({
+            "type": "stream",
+            "to": [stream],
+            "topic": subject,
             "content": checklist,
         })
-    logger.info("Sending messages finished.")
+        logger.info("Sending messages finished.")
 
 
-def update_database(client: zulip.Client, stream: str):
+def update_database(client: zulip.Client, stream: str, database: str):
     """
     Synchronise the database with all users in the Zulip stream.
 
     :param client: Zulip client
     :param stream: Zulip stream
+    :param database: database name
     """
     subscribers: list[int] = client.get_subscribers(stream=stream)["subscribers"]
-    db = TinyDB("database.json")
+    db = TinyDB(database)
     # Add new users in Zulip stream to database, ignore bots
     for subscribers_id in subscribers:
-        if not client.get_user_by_id(subscribers_id)["user"]["is_bot"]:
+        if (not client.get_user_by_id(subscribers_id)["user"]["is_bot"]) and (subscribers_id not in NO_KITCHEN_DUTIES):
             if not db.contains(Query().id == subscribers_id):
                 user = client.get_user_by_id(subscribers_id)["user"]
                 order = 1
@@ -207,44 +264,51 @@ def update_database(client: zulip.Client, stream: str):
     # Remove users who are not in Zulip stream anymore from database
     for user in db:
         user_id_in_db: int = user["id"]
-        if user_id_in_db not in subscribers:
+        if (user_id_in_db not in subscribers) or (user_id_in_db in NO_KITCHEN_DUTIES):
             # Edge case, when active user removed, define next user
             if user["active"]:
-                set_next_user()
-            update_orders(user_id_in_db)
+                set_next_user(database)
+            update_orders(user_id_in_db, database)
 
 
-def update_orders(id_remove: int):
+def update_orders(id_remove: int, database: str):
     """
     Remove a user and update all orders.
+
+    :param id_remove: id of user to be removed
+    :param database: database name
     """
-    db = TinyDB("database.json")
+    db = TinyDB(database)
     order: int = db.get(Query().id == id_remove)["order"]
     dec_order = db.search(Query().order > order)
     db.remove(Query().id == id_remove)
+    # This solution is not elegant but rather simple, a doubly linked list will be added in the future
     if dec_order is not None:
         for i in dec_order:
             db.update({"order": i["order"] - 1}, doc_ids=[i.doc_id])
 
 
-def set_first_user():
+def set_first_user(database: str):
     """
     Define the first user who should start with kitchen duties.
+
+    :param database: database name
     """
-    db = TinyDB("database.json")
+    db = TinyDB(database)
     if not db.all() == []:
         if not db.contains(Query().active == True):
             db.update({"active": True}, Query().order == 1)
 
 
-def get_user() -> list:
+def get_user(database: str) -> list:
     """
     Return the next eight users for kitchen duties.
 
+    :param database: database name
     :return: list of Zulip users
     """
     res = []
-    db = TinyDB("database.json")
+    db = TinyDB(database)
     current_user = db.get(Query().active == True)
     if current_user is not None:
         current_order = current_user["order"]
@@ -255,29 +319,31 @@ def get_user() -> list:
     return res
 
 
-def get_dates() -> list:
+def get_dates(initial: datetime.date) -> list:
     """
-    Return the next eight dates for kitchen duties.
+    Return the next eight dates for kitchen duties from an initial date.
 
+    :param initial: initial date
     :return: list of dates
     """
     res = []
-    cur_date = datetime.date.today()
     for i in range(8):
-        cur_week = datetime.date.isocalendar(cur_date)[1]
-        cur_year = datetime.date.isocalendar(cur_date)[0]
+        cur_week = datetime.date.isocalendar(initial)[1]
+        cur_year = datetime.date.isocalendar(initial)[0]
         monday = datetime.datetime.strptime(f"{cur_year}-W{cur_week}-1", "%Y-W%W-%w").strftime('%d.%m.%Y')
         friday = datetime.datetime.strptime(f"{cur_year}-W{cur_week}-5", "%Y-W%W-%w").strftime('%d.%m.%Y')
         res.append([cur_week, monday, friday])
-        cur_date = cur_date + datetime.timedelta(days=7)
+        initial += datetime.timedelta(days=7)
     return res
 
 
-def set_next_user():
+def set_next_user(database: str):
     """
     Define the next user for kitchen duties.
+
+    :param database: database name
     """
-    db = TinyDB("database.json")
+    db = TinyDB(database)
     current_user = db.get(Query().active == True)
     if current_user is not None:
         db.update({"active": False}, doc_ids=[current_user.doc_id])
@@ -287,4 +353,7 @@ def set_next_user():
 
 
 if __name__ == "__main__":
-    main_loop()
+    if not TEST:
+        main_loop()
+    else:
+        test_main_loop()

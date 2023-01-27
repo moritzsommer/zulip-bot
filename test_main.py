@@ -15,6 +15,9 @@ SAT_2022 = datetime.datetime(hour=9, day=31, month=12, year=2022)
 SUN_2023 = datetime.datetime(hour=9, day=1, month=1, year=2023)
 MON_2023 = datetime.datetime(hour=9, day=2, month=1, year=2023)
 
+MON_8_AM = datetime.datetime(hour=8, day=2, month=1, year=2023)
+MON_9_AM = datetime.datetime(hour=9, day=2, month=1, year=2023)
+
 
 def test_1():
     assert calculate_sleep_time(MON, 1, 2) == datetime.datetime(minute=30, hour=8, day=4, month=1, year=2022)
@@ -34,3 +37,11 @@ def test_4():
 
 def test_5():
     assert calculate_sleep_time(SAT_2022, 6, 1) == datetime.datetime(minute=30, hour=8, day=1, month=1, year=2023)
+
+
+def test_6():
+    assert calculate_sleep_time(MON_8_AM, 0, 3) == datetime.datetime(minute=30, hour=8, day=2, month=1, year=2023)
+
+
+def test_7():
+    assert calculate_sleep_time(MON_9_AM, 0, 3) == datetime.datetime(minute=30, hour=8, day=5, month=1, year=2023)
