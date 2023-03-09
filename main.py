@@ -45,10 +45,10 @@ SECOND_DAY = 3
 NO_KITCHEN_DUTIES = [17, 31]
 DATABASE = "database.json"
 
-TEST = True
+TEST = False
 TEST_DATABASE = "test_database.json"
 TEST_STARTING_DATE = datetime.datetime.strptime("01.01.23 08:00:00", '%d.%m.%y %H:%M:%S')
-TEST_WEEKS = 5
+TEST_WEEKS = 3
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -194,6 +194,7 @@ def send_plan(client: zulip.Client, stream: str, initial: datetime.date, databas
                     date[2])
                 for user, date in zip(users, dates))
     )
+    formatted_plan = formatted_plan + "\n\n @**" + users[0]["name"] + "** ist diese Woche mit dem Küchendienst dran."
 
     subject = f"Küchenplan {dates[0][1]} - {dates[0][2]}"
     if datetime.date.isocalendar(initial)[2] - 1 == FIRST_DAY:
