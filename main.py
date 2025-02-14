@@ -331,8 +331,9 @@ def get_dates(initial: datetime.date) -> list:
     for i in range(8):
         cur_week = datetime.date.isocalendar(initial)[1]
         cur_year = datetime.date.isocalendar(initial)[0]
-        monday = datetime.datetime.strptime(f"{cur_year}-W{cur_week}-1", "%Y-W%W-%w").strftime('%d.%m.%Y')
-        friday = datetime.datetime.strptime(f"{cur_year}-W{cur_week}-5", "%Y-W%W-%w").strftime('%d.%m.%Y')
+        # Nach ISO-standard
+        monday = datetime.date.fromisocalendar(cur_year,cur_week, 1).strftime('%d.%m.%Y')
+        friday = datetime.date.fromisocalendar(cur_year,cur_week, 5).strftime('%d.%m.%Y')
         res.append([cur_week, monday, friday])
         initial += datetime.timedelta(days=7)
     return res
