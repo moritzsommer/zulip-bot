@@ -42,7 +42,12 @@ __version__ = "1.0"
 INFO_TIME = datetime.time(8, 30, 00, tzinfo=pytz.timezone('Europe/Berlin'))
 FIRST_DAY = 0
 SECOND_DAY = 3
-NO_KITCHEN_DUTIES = [17, 31]
+# Zulip UIDs of people to skip when planning the kitchen duty
+NO_KITCHEN_DUTIES = [
+    17,  # torben 
+    31,  # tobias
+    54  # moritz
+]
 DATABASE = "database.json"
 
 TEST = False
