@@ -1,0 +1,9 @@
+services:
+  zulip-bot-kuechendienst:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: zulip-bot-kuechendienst
+    volumes:
+      - ./database.json:/database.json
+    restart: unless-stopped

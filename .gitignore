@@ -1,3 +1,6 @@
+# Ignore dynamically generated database
+database.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
